@@ -1,0 +1,42 @@
+name: Release please_pex (manual)
+on:
+  workflow_dispatch: {}
+jobs:
+  build:
+    name: Build please_pex
+    uses: ./.github/workflows/please_pex_build.yaml
+    with:
+      platform: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - darwin_amd64
+          - darwin_arm64
+          - freebsd_amd64
+          - linux_amd64
+          - linux_arm64
+  release:
+    name: Release please_pex
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      BIN_DIR: /tmp/please_pex_release
+    steps:
+      - name: Download please_pex binaries from artifact storage
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ env.BIN_DIR }}
+          pattern: please_pex_*
+          merge-multiple: true
+      - name: Check out code
+        uses: actions/checkout@v6
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: thought-machine/release-action@master
+        with:
+          release-files: ${{ env.BIN_DIR }}
+          version-file: tools/please_pex/VERSION
+          change-log-file: tools/please_pex/ChangeLog
+          release-prefix: please_pex
