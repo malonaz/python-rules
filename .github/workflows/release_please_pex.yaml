@@ -20,6 +20,8 @@ jobs:
     name: Release please_pex
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       BIN_DIR: /tmp/please_pex_release
     steps:
