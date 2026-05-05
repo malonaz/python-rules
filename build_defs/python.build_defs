@@ -95,7 +95,7 @@ def python_binary(name:str, main:str, srcs:list=[], resources:list=[], out:str=N
                   data:list=None, visibility:list=None, test_only:bool=False, zip_safe:bool=None,
                   site:bool=False, strip:bool=False, interpreter:str=CONFIG.PYTHON.DEFAULT_INTERPRETER,
                   runtime_interpreters:list=None, runtime_interpreter_args:list=None,
-                  module_dir:str=CONFIG.PYTHON.MODULE_DIR, labels:list&features&tags=[]):
+                  module_dir:list=CONFIG.PYTHON.MODULE_DIR, labels:list&features&tags=[]):
     """Generates a Python binary target.
 
     This compiles all source files together into a single .pex file which can
@@ -155,9 +155,10 @@ def python_binary(name:str, main:str, srcs:list=[], resources:list=[], out:str=N
 
     runtime_args, runtime_targets = _runtime_interpreter(interpreter, runtime_interpreters, runtime_interpreter_args)
     zipsafe_flag = '' if zip_safe is False else '--zip_safe'
-    cmd = '$TOOLS_PEX --preamble_verbosity="%s" -m "%s" %s %s' % (
+    module_dir_flags = ' '.join(['-m "%s"' % d for d in module_dir])
+    cmd = '$TOOLS_PEX --preamble_verbosity="%s" %s %s %s' % (
         CONFIG.PYTHON.DEFAULT_PREAMBLE_VERBOSITY,
-        module_dir,
+        module_dir_flags,
         zipsafe_flag,
         runtime_args,
     )
@@ -237,7 +238,7 @@ def python_test(name:str, srcs:list, data:list|dict=[], resources:list=[], deps:
                 sandbox:bool=None, timeout:int=0, flaky:bool|int=0, env:dict=None,
                 test_outputs:list=None, zip_safe:bool=None, interpreter:str=CONFIG.PYTHON.DEFAULT_INTERPRETER,
                 runtime_interpreters:list=None, runtime_interpreter_args:list=None,
-                site:bool=False, test_runner:str=None, module_dir:str=CONFIG.PYTHON.MODULE_DIR):
+                site:bool=False, test_runner:str=None, module_dir:list=CONFIG.PYTHON.MODULE_DIR):
     """Generates a Python test target.
 
     This works very similarly to python_binary; it is also a single .pex file
@@ -292,12 +293,14 @@ def python_test(name:str, srcs:list, data:list|dict=[], resources:list=[], deps:
     """
     test_runner = test_runner or CONFIG.PYTHON.TEST_RUNNER
     runtime_args, runtime_targets = _runtime_interpreter(interpreter, runtime_interpreters, runtime_interpreter_args)
-    cmd = '$TOOLS_PEX --preamble_verbosity="%s" -t -m "%s" -r "%s" --zip_safe --add_test_runner_deps %s --stamp="$RULE_HASH"' % (
+    module_dir_flags = ' '.join(['-m "%s"' % d for d in module_dir])
+    cmd = '$TOOLS_PEX --preamble_verbosity="%s" -t %s -r "%s" --zip_safe --add_test_runner_deps %s --stamp="$RULE_HASH"' % (
         CONFIG.PYTHON.DEFAULT_PREAMBLE_VERBOSITY,
-        module_dir,
+        module_dir_flags,
         test_runner,
         runtime_args,
     )
+
     if site:
         cmd += ' -S'
 
@@ -552,7 +555,7 @@ def python_wheel(name:str, version:str, labels:list=[], hashes:list=None, packag
                  strip:list=['*.pyc', 'tests'], binary = False, entry_points:dict|str={},
                  tool:str=CONFIG.PYTHON.WHEEL_TOOL, prereleases:bool=CONFIG.PYTHON.PRERELEASES,
                  tool_verbosity:str=CONFIG.PYTHON.VERBOSITY, interpreter:str=CONFIG.PYTHON.DEFAULT_INTERPRETER,
-                 module_dir:str=CONFIG.PYTHON.MODULE_DIR):
+                 module_dir:list=CONFIG.PYTHON.MODULE_DIR):
     """Downloads a Python wheel and extracts it.
 
     This is a lightweight pip-free alternative to pip_library which supports cross-compiling.
@@ -752,7 +755,7 @@ def python_wheel(name:str, version:str, labels:list=[], hashes:list=None, packag
         )
     return lib_rule
 
-def _wheel_entrypoint_binary(name:str, entrypoint:str, lib_rule, visibility, test_only, module_dir:str, out=None):
+def _wheel_entrypoint_binary(name:str, entrypoint:str, lib_rule, visibility, test_only, module_dir:list, out=None):
     module, _, func = entrypoint.rpartition(":")
     main = text_file(
         name = tag(name, "main"),

@@ -96,7 +96,8 @@ Help = The debugger to use when debugging python binaries
 [PluginConfig "module_dir"]
 ConfigKey = ModuleDir
 DefaultValue = third_party.python
-Help = The path to the third party python directory, in python import path format e.g. third_party.py3 for //third_party/py3
+Repeatable = true
+Help = The path(s) to third party python directories, in python import path format
 
 [PluginConfig "pip_tool"]
 ConfigKey = PipTool
