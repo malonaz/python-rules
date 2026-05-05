@@ -11,7 +11,7 @@ PEX_PATH = PEX
 sys.path = [PEX_PATH] + sys.path
 
 # These will get templated in by the build rules.
-MODULE_DIR = '__MODULE_DIR__'
+MODULE_DIRS = [d for d in '__MODULE_DIR__'.split(',') if d]
 ENTRY_POINT = '__ENTRY_POINT__'
 ZIP_SAFE = __ZIP_SAFE__
 PEX_STAMP = '__PEX_STAMP__'
@@ -19,12 +19,17 @@ PEX_STAMP = '__PEX_STAMP__'
 
 def add_module_dir_to_sys_path(dirname, zip_safe=True):
     """Adds the given dirname to sys.path if it's nonempty."""
-    import plz  # this needs to be imported after paths are set up
+    import plz
     if dirname:
         sys.path.insert(1, os.path.join(sys.path[0], dirname))
         sys.meta_path.insert(0, plz.ModuleDirImport(dirname))
-    if zip_safe:
-        sys.meta_path.append(plz.SoImport(MODULE_DIR))
+
+
+def add_so_import(module_dirs):
+    """Adds the SoImport meta path finder for all module dirs."""
+    import plz
+    for module_dir in module_dirs:
+        sys.meta_path.append(plz.SoImport(module_dir))
 
 
 def pex_basepath(temp=False):
@@ -48,22 +53,15 @@ def pex_paths():
 
 
 def explode_zip():
-    """Extracts the current pex to a temp directory where we can import everything from.
-
-    This is primarily used for binary extensions which can't be imported directly from
-    inside a zipfile.
-    """
-    # Temporarily add bootstrap to sys path
+    """Extracts the current pex to a temp directory where we can import everything from."""
     sys.path = [os.path.join(sys.path[0], '.bootstrap')] + sys.path[1:]
     import contextlib, portalocker, plz
     sys.path = sys.path[1:]
 
     @contextlib.contextmanager
     def pex_lockfile(basepath, uniquedir):
-        # Acquire the lockfile.
         lockfile_path = os.path.join(basepath, '.lock-%s' % uniquedir)
         with open(lockfile_path, "a+") as lockfile:
-            # Block until we can acquire the lockfile.
             portalocker.lock(lockfile, portalocker.LOCK_EX)
             lockfile.seek(0)
             yield lockfile
@@ -71,8 +69,6 @@ def explode_zip():
 
     @contextlib.contextmanager
     def _explode_zip():
-        # We need to update the actual variable; other modules are allowed to look at
-        # these variables to find out what's going on (e.g. are we zip-safe or not).
         global PEX_PATH
 
         PEX_PATH, basepath, uniquedir, no_cache = pex_paths()
@@ -85,11 +81,9 @@ def explode_zip():
                 with plz.ZipFileWithPermissions(PEX, "r") as zf:
                     zf.extractall(PEX_PATH)
 
-                if not no_cache:  # Don't bother optimizing; we're deleting this when we're done.
+                if not no_cache:
                     compileall.compile_dir(PEX_PATH, optimize=2, quiet=1)
 
-                # Writing nonempty content to the lockfile will signal to subsequent invocations
-                # that the cache has already been prepared.
                 lockfile.write("pex unzip completed")
         sys.path = [PEX_PATH] + [x for x in sys.path if x != PEX]
         try:
@@ -103,11 +97,7 @@ def explode_zip():
 
 
 def profile(filename):
-    """Returns a context manager to perform profiling while the program runs.
-
-    This is triggered by setting the PEX_PROFILE_FILENAME env var to the destination file,
-    at which point this will be invoked automatically at pex startup.
-    """
+    """Returns a context manager to perform profiling while the program runs."""
     import contextlib, cProfile
 
     @contextlib.contextmanager
@@ -122,22 +112,14 @@ def profile(filename):
     return _profile
 
 
-# This must be redefined/implemented when the pex is built for debugging.
-# The `DEBUG_PORT` environment variable should be used if the debugger is
-# to be used as a server.
 def start_debugger():
     pass
 
 
 def main():
-    """Runs the 'real' entry point of the pex.
-
-    N.B. This gets redefined by pex_test_main to run tests instead.
-    """
-    # Starts a debugging session, if defined, before running the entry point.
+    """Runs the 'real' entry point of the pex."""
     if os.getenv("PLZ_DEBUG") is not None:
         start_debugger()
 
-    # Must run this as __main__ so it executes its own __name__ == '__main__' block.
     runpy.run_module(ENTRY_POINT, run_name='__main__')
-    return 0  # unless some other exception gets raised, we're successful.
+    return 0

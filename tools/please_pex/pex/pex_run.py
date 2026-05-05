@@ -3,10 +3,13 @@ def run(explode=False):
     sys.path.insert(1, os.path.join(sys.path[0], '.bootstrap'))
     if explode or not ZIP_SAFE:
         with explode_zip()():
-            add_module_dir_to_sys_path(MODULE_DIR, zip_safe=False)
+            for module_dir in MODULE_DIRS:
+                add_module_dir_to_sys_path(module_dir, zip_safe=False)
             return main()
     else:
-        add_module_dir_to_sys_path(MODULE_DIR)
+        for module_dir in MODULE_DIRS:
+            add_module_dir_to_sys_path(module_dir)
+        add_so_import(MODULE_DIRS)
         return main()
 
 
